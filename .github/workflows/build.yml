@@ -33,7 +33,7 @@ jobs:
     strategy:
       matrix:
         debian: [11, 12]
-        python: [3.9, 3.10, 3.11, 3.12]
+        python: ["3.9", "3.10", "3.11", "3.12"]
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -47,6 +47,37 @@ jobs:
         run: echo PYTHON_FULL_VERSION=$(docker run --rm python ls /usr/local/share/pyenv/versions | head -1)               >> $GITHUB_ENV
       - name: Get Release Filename
         run: echo "RELEASE_FILENAME=python-${{ env.PYTHON_FULL_VERSION }}-amd64-pyenv-debian-${{ matrix.debian }}.tar.zst" >> $GITHUB_ENV
+      - name: Set Release Filename
+        run: mv python.tar.zst "$RELEASE_FILENAME"
+      - name: Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: ${{ env.RELEASE_FILENAME }}
+          tag_name: Build-${{ needs.build-number.outputs.build }}
+          append_body: true
+          make_latest: true
+
+  build-ubuntu:
+    name: Build Ubuntu
+    needs: [build-number]
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        ubuntu: ["22.04", "20.04"]
+        python: ["3.9", "3.10", "3.11", "3.12"]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Build Python ${{ matrix.python }} on Ubuntu ${{ matrix.ubuntu }} in Docker
+        run: |
+            docker build . -t python -f Ubuntu.dockerfile \
+                --build-arg="UBUNTU_VERSION=${{ matrix.ubuntu }}" \
+                --build-arg="PYTHON_VERSION=${{ matrix.python }}"
+            docker run --rm python tar -C /usr/local/share/pyenv/versions -cf - . | zstd -16 > python.tar.zst
+      - name: Get Python Full Version
+        run: echo PYTHON_FULL_VERSION=$(docker run --rm python ls /usr/local/share/pyenv/versions | head -1)               >> $GITHUB_ENV
+      - name: Get Release Filename
+        run: echo "RELEASE_FILENAME=python-${{ env.PYTHON_FULL_VERSION }}-amd64-pyenv-ubuntu-${{ matrix.ubuntu }}.tar.zst" >> $GITHUB_ENV
       - name: Set Release Filename
         run: mv python.tar.zst "$RELEASE_FILENAME"
       - name: Release
